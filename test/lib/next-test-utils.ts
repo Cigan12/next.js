@@ -27,6 +27,7 @@ import type { SpawnOptions, ChildProcess } from 'child_process'
 import type { RequestInit, Response } from 'node-fetch'
 import type { NextServer } from 'next/dist/server/next'
 import { BrowserInterface } from './browsers/base'
+import { Playwright } from './browsers/playwright'
 
 import { getTurbopackFlag, shouldRunTurboDevTest } from './turbo'
 import stripAnsi from 'strip-ansi'
@@ -826,47 +827,26 @@ export async function retry<T>(
 }
 
 export async function assertHasRedbox(browser: BrowserInterface) {
+  // TODO: Implement for other BrowserInterface implementations
+  const playwright = browser as Playwright
+
   try {
-    await retry(
-      async () => {
-        const hasRedbox = await browser.eval(() => {
-          return Boolean(
-            [].slice
-              .call(document.querySelectorAll('nextjs-portal'))
-              .find((p) =>
-                p.shadowRoot.querySelector(
-                  '#nextjs__container_errors_label, #nextjs__container_errors_label'
-                )
-              )
-          )
-        })
-        expect(hasRedbox).toBe(true)
-      },
-      5000,
-      200
-    )
+    await playwright.locateRedbox().waitFor({ timeout: 5000 })
   } catch (errorCause) {
-    const error = new Error('Expected Redbox but found none')
+    const error = new Error('Expected Redbox but found no visible one.')
     Error.captureStackTrace(error, assertHasRedbox)
     throw error
   }
 }
 
 export async function assertNoRedbox(browser: BrowserInterface) {
-  await waitFor(5000)
-  const hasRedbox = await browser.eval(() => {
-    return Boolean(
-      [].slice
-        .call(document.querySelectorAll('nextjs-portal'))
-        .find((p) =>
-          p.shadowRoot.querySelector(
-            '#nextjs__container_errors_label, #nextjs__container_errors_label'
-          )
-        )
-    )
-  })
+  // TODO: Implement for other BrowserInterface implementations
+  const playwright = browser as Playwright
 
-  if (hasRedbox) {
+  await waitFor(5000)
+  const redbox = playwright.locateRedbox()
+
+  if (redbox.isVisible()) {
     const [redboxHeader, redboxDescription, redboxSource] = await Promise.all([
       getRedboxHeader(browser).catch(() => '<missing>'),
       getRedboxDescription(browser).catch(() => '<missing>'),
@@ -874,7 +854,7 @@ export async function assertNoRedbox(browser: BrowserInterface) {
     ])
 
     const error = new Error(
-      'Expected no Redbox but found one\n' +
+      'Expected no visible Redbox but found one\n' +
         `header: ${redboxHeader}\n` +
         `description: ${redboxDescription}\n` +
         `source: ${redboxSource}`
@@ -921,16 +901,26 @@ export async function getToastErrorCount(
  * Success implies {@link assertHasRedbox}.
  */
 export async function openRedbox(browser: BrowserInterface): Promise<void> {
+  // TODO: Implement for other BrowserInterface implementations
+  const playwright = browser as Playwright
+  const redbox = playwright.locateRedbox()
+  if (redbox.isVisible()) {
+    const error = new Error(
+      'Redbox is already open. Use `assertHasRedbox` instead.'
+    )
+    Error.captureStackTrace(error, openRedbox)
+    throw error
+  }
+
   try {
     //TODO(jiwon): data-nextjs-toast won't open red box in new UI.
     if (isNewDevOverlay) {
-      await browser.waitForElementByCss('[data-error-expanded="true"]')
       await browser.waitForElementByCss('[data-issues-open]').click()
     } else {
       await browser.waitForElementByCss('[data-nextjs-toast]').click()
     }
   } catch (cause) {
-    const error = new Error('No Redbox to open.', { cause })
+    const error = new Error('Redbox did not open.')
     Error.captureStackTrace(error, openRedbox)
     throw error
   }

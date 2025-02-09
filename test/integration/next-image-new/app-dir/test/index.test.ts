@@ -1126,7 +1126,7 @@ function runTests(mode: 'dev' | 'server') {
       )
     })
 
-    it('should not warn when svg, even if with loader prop or without', async () => {
+    fit('should not warn when svg, even if with loader prop or without', async () => {
       const browser = await webdriver(appPort, '/loader-svg')
       await browser.eval(`document.querySelector("footer").scrollIntoView()`)
       const warnings = (await browser.log())
