@@ -163,7 +163,6 @@ pub async fn write_import_context(
 #[turbo_tasks::value]
 pub struct CssChunkContent {
     pub chunk_items: Vec<ResolvedVc<Box<dyn CssChunkItem>>>,
-    pub referenced_output_assets: ResolvedVc<OutputAssets>,
 }
 
 #[turbo_tasks::value_impl]
@@ -306,20 +305,17 @@ impl OutputAsset for CssChunk {
     async fn references(self: Vc<Self>) -> Result<Vc<OutputAssets>> {
         let this = self.await?;
         let content = this.content.await?;
-        let mut references = content.referenced_output_assets.owned().await?;
-        references.extend(
-            content
-                .chunk_items
-                .iter()
-                .map(|item| async {
-                    SingleItemCssChunk::new(*this.chunking_context, **item)
-                        .to_resolved()
-                        .await
-                        .map(ResolvedVc::upcast)
-                })
-                .try_join()
-                .await?,
-        );
+        let mut references = content
+            .chunk_items
+            .iter()
+            .map(|item| async {
+                SingleItemCssChunk::new(*this.chunking_context, **item)
+                    .to_resolved()
+                    .await
+                    .map(ResolvedVc::upcast)
+            })
+            .try_join()
+            .await?;
         if *this
             .chunking_context
             .reference_chunk_source_maps(Vc::upcast(self))
@@ -490,7 +486,6 @@ impl ChunkType for CssChunkType {
         &self,
         chunking_context: ResolvedVc<Box<dyn ChunkingContext>>,
         chunk_items: Vec<ChunkItemWithAsyncModuleInfo>,
-        referenced_output_assets: ResolvedVc<OutputAssets>,
     ) -> Result<Vc<Box<dyn Chunk>>> {
         let content = CssChunkContent {
             chunk_items: chunk_items
@@ -506,7 +501,6 @@ impl ChunkType for CssChunkType {
                 })
                 .try_join()
                 .await?,
-            referenced_output_assets,
         }
         .cell();
         Ok(Vc::upcast(CssChunk::new(*chunking_context, content)))
