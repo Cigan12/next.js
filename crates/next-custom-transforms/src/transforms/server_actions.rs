@@ -2274,7 +2274,13 @@ fn create_var_declarator(ident: &Ident, extra_items: &mut Vec<ModuleItem>) {
 fn assign_name_to_ident(ident: &Ident, name: &str, extra_items: &mut Vec<ModuleItem>) {
     // Assign a name with `Object.defineProperty($$ACTION_0, 'name', {value: 'default'})`
     extra_items.push(quote!(
-        "Object.defineProperty($action, \"name\", { value: $name, writable: false });"
+        // WORKAROUND: this should be
+        //
+        //   "Object.defineProperty($action, \"name\", { value: $name, writable: false });"
+        //
+        // but due to a bug in typescript, `Object.defineProperty` calls are typechecked incorrectly
+        // in js files, so it causes false positives when typechecking our fixture files.
+        "Object[\"defineProperty\"]($action, \"name\", { value: $name, writable: false });"
             as ModuleItem,
         action: Ident = ident.clone(),
         name: Expr = name.into(),
